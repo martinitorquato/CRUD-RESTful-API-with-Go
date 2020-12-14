@@ -10,13 +10,13 @@ import (
 )
 
 type Post struct {
-	ID       uint64    `gorm:"primary_key; auto_increment" json:"id"`
-	Title    string    `gorm:"size:255; not null; unique" json:"title"`
-	Content  string    `gorm:"size:255; not null; unique" json:"content"`
-	Author   User      `json:"author"`
-	AuthorID uint32    `gorm:"not null" json:"author_id"`
-	CreateAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdateAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
+	ID        uint64    `gorm:"primary_key;auto_increment" json:"id"`
+	Title     string    `gorm:"size:255;not null;unique" json:"title"`
+	Content   string    `gorm:"size:255;not null;" json:"content"`
+	Author    User      `json:"author"`
+	AuthorID  uint32    `sql:"type:int REFERENCES users(id)" json:"author_id"`
+	CreatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
+	UpdatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
 }
 
 func (p *Post) Prepare() {
@@ -29,13 +29,14 @@ func (p *Post) Prepare() {
 }
 
 func (p *Post) Validate() error {
+
 	if p.Title == "" {
 		return errors.New("Required Title")
 	}
 	if p.Content == "" {
 		return errors.New("Required Content")
 	}
-	if p.Author == "" {
+	if p.AuthorID < 1 {
 		return errors.New("Required Author")
 	}
 	return nil
@@ -59,7 +60,7 @@ func (p *Post) SavePost(db *gorm.DB) (*Post, error) {
 func (p *Post) FindAllPosts(db *gorm.DB) (*[]Post, error) {
 	var err error
 	posts := []Post{}
-	err = db.Debug().Model(&Post{}).limit(100).Find(&posts).Error
+	err = db.Debug().Model(&Post{}).Limit(100).Find(&posts).Error
 	if err != nil {
 		return &[]Post{}, err
 	}
@@ -80,7 +81,7 @@ func (p *Post) FindPostByID(db *gorm.DB, pid uint64) (*Post, error) {
 	if err != nil {
 		return &Post{}, err
 	}
-	if ip.ID != 0 {
+	if p.ID != 0 {
 		err = db.Debug().Model(&User{}).Where("id = ?", p.AuthorID).Take(&p.Author).Error
 		if err != nil {
 			return &Post{}, err
@@ -90,8 +91,9 @@ func (p *Post) FindPostByID(db *gorm.DB, pid uint64) (*Post, error) {
 }
 
 func (p *Post) UpdateAPost(db *gorm.DB) (*Post, error) {
+
 	var err error
-	err = db.Debug().Model(&Post{}).Where("id = ?", p.ID).Updates(Post{Title: p.Title, Content: p.Content, UpdateAt: time.Now()}).Error
+	err = db.Debug().Model(&Post{}).Where("id = ?", p.ID).Updates(Post{Title: p.Title, Content: p.Content, UpdatedAt: time.Now()}).Error
 	if err != nil {
 		return &Post{}, err
 	}
@@ -105,7 +107,9 @@ func (p *Post) UpdateAPost(db *gorm.DB) (*Post, error) {
 }
 
 func (p *Post) DeleteAPost(db *gorm.DB, pid uint64, uid uint32) (int64, error) {
+
 	db = db.Debug().Model(&Post{}).Where("id = ? and author_id = ?", pid, uid).Take(&Post{}).Delete(&Post{})
+
 	if db.Error != nil {
 		if gorm.IsRecordNotFoundError(db.Error) {
 			return 0, errors.New("Post not found")
